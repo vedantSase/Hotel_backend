@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const Person = require('../Models/Person');
+const {jwtAuthMiddleware, generateToken,} = require('../jwtAuth');
 
 // posting Person Data into database
-router.post('/', async (req, res) => {
+router.post('/signup', async (req, res) => {
     try {
-      const data = req.body ; //Assuming  the request body conatins the person data
+      const data = req.body ; //Assuming  the request body contains the person data
   
       // creating a new person document using the mongoose model
       const newPerson = new Person(data);
@@ -13,16 +14,57 @@ router.post('/', async (req, res) => {
       // saving new person to database
       const savedPerson = await newPerson.save();
       console.log("Data Saved", savedPerson);
-      res.status(200).json(savedPerson);
+      const payLoad = {
+        id: savedPerson.id,
+        username : savedPerson.username
+      }
+      const token = generateToken(payLoad);
+      console.log("Token Saved : ", token);
+      res.status(200).json({savedPerson : savedPerson, token : token});
     } catch (error) {
       console.log("Error while Saving Data !!!\n", error);
       res.status(500).json(error, '\nInternal server error');
     }
   })
   
-  
-// getting Person data from database
-router.get('/', async (req, res)=> {
+// profile rount
+rputer
+
+
+// login user 
+router.post('/login', async (req, res) => {
+  try {
+    const {username, password} = req.body ;
+
+    // check if user exists or not in database
+    const isuser = await Person.findOne({username: username});
+
+    // if user is not in database or password is not right
+    if(!isuser || !(await isuser.comparePassword(password))){
+      return res.status(401).json({message: 'Wrong credentials'});
+    }
+
+    // if all okay then generate token
+    const payload = {
+      id : isuser.id ,
+      username : isuser.username
+    }
+    const userinfo = {
+      username : isuser.username ,
+      mobile : isuser.mobile,
+      password : isuser.password
+    }
+    const token = generateToken(payload);
+    // return the token as response
+    res.status(200).json({message : userinfo ,token: token});
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({error: 'Internal server error'});
+  }
+})
+
+//getting Person data from database
+router.get('/', jwtAuthMiddleware, async (req, res)=> {
     try {
       const data = await Person.find();
       console.log("Data Fetched - ",data);
@@ -32,7 +74,8 @@ router.get('/', async (req, res)=> {
       res.status(500).json(error,'Internal server error');
     }
   })
-  
+
+
 // get person data on basis of work profession
 router.get('/:workType',async (req , res) => {
     try {
